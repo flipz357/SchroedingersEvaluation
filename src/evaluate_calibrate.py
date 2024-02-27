@@ -1,15 +1,10 @@
-import csv
-import os
 from sklearn.metrics import roc_auc_score, accuracy_score
-from scipy.stats import rankdata
-from collections import defaultdict
 import numpy as np
 from random import shuffle
-from sklearn.svm import LinearSVC
 from sklearn.linear_model import LogisticRegression
 import json
 import data_helpers as dh
-
+import argparse
 
 def evaluate_calibrate(dataset_metric, metrics, dataset_domain=None, domain_count=None, mode=None):
 
@@ -19,21 +14,11 @@ def evaluate_calibrate(dataset_metric, metrics, dataset_domain=None, domain_coun
     for ds in dataset_metric:
         performance_auc = list()
         performance_acc = list()
-        performance_tr = list()
         gold = dataset_metric[ds]["label"]
         
         for i, metric in enumerate(metrics):
               
             trainpreds = []
-            for dsx in dataset_metric:
-                if dsx == ds:
-                    continue
-                if mode == "indomain":
-                    domain = dataset_domain[ds]
-                    if domain_count[domain] > 1 and domain != dataset_domain[dsx]:
-                        continue
-                trainpreds += dataset_metric[dsx][metric]
-            
             traingold = []
             for dsx in dataset_metric:
                 if dsx == ds:
@@ -42,15 +27,33 @@ def evaluate_calibrate(dataset_metric, metrics, dataset_domain=None, domain_coun
                     domain = dataset_domain[ds]
                     if domain_count[domain] > 1 and domain != dataset_domain[dsx]:
                         continue
+                elif mode == "outdomain":
+                    domain = dataset_domain[ds]
+                    if domain == dataset_domain[dsx]:
+                        continue
+                trainpreds += dataset_metric[dsx][metric]
                 traingold += dataset_metric[dsx]["label"]
-            
+            """ 
+            traingold = []
+            for dsx in dataset_metric:
+                if dsx == ds:
+                    continue
+                if mode == "indomain":
+                    domain = dataset_domain[ds]
+                    if domain_count[domain] > 1 and domain != dataset_domain[dsx]:
+                        continue
+                elif mode == "outdomain":
+                    domain = dataset_domain[ds]
+                    if domain == dataset_domain[dsx]:
+                        continue
+                traingold += dataset_metric[dsx]["label"]
+            """
             preds = dataset_metric[ds][metric] 
             predsx = [[p] for p in preds]
             trainpredsx = [[trainpreds[i]] for i in range(len(trainpreds))]
             clf = LogisticRegression()
             clf.fit(trainpredsx, traingold)
             testybar = clf.predict(predsx)
-            trainybar = clf.predict(trainpredsx)
 
             acc = accuracy_score(gold, testybar)
             auc = roc_auc_score(gold, preds)
@@ -69,61 +72,83 @@ def evaluate_calibrate_indata(dataset_metric, metrics):
     EVAL_AUC = []
     EVAL_ACC = []
 
-    for k in range(10):
-        EVAL_AUC_K = []
-        EVAL_ACC_K = []
-        for ds in dataset_metric:
-            performance_auc = list()
-            performance_acc = list()
-            performance_tr = list()
-            gold = dataset_metric[ds]["label"]    
+    for ds in dataset_metric:
+        performance_auc = list()
+        performance_acc = list()
+        
+        gold = dataset_metric[ds]["label"]
+        idxs = list(range(len(gold)))
+            
+
+        for _ in range(25):
+            shuffle(idxs)
+            cut = int((len(idxs)/100) * 80)
+            train_idx = idxs[:cut]
+            test_idx = idxs[cut:]
+            auc_k = []
+            acc_k = []
             for i, metric in enumerate(metrics):
-                  
-                trainpreds = []
-                for dsx in dataset_metric:
-                    if dsx == ds:
-                        continue
-                    trainpreds += dataset_metric[dsx][metric]
                 
-                traingold = []
-                for dsx in dataset_metric:
-                    if dsx == ds:
-                        continue
-                    traingold += dataset_metric[dsx]["label"]
+                preds = dataset_metric[ds][metric]
+                gold = dataset_metric[ds]["label"]
+                trainpredsx = [[preds[i]] for i in train_idx]
+                traingold = [gold[i] for i in train_idx]
+                predsx = [[preds[i]] for i in test_idx]
+                goldx = [gold[i] for i in test_idx]
                 
-                preds = dataset_metric[ds][metric] 
-                predsx = [[p] for p in preds]
-                trainpredsx = [[trainpreds[i]] for i in range(len(trainpreds))]
                 clf = LogisticRegression()
                 clf.fit(trainpredsx, traingold)
                 testybar = clf.predict(predsx)
-                trainybar = clf.predict(trainpredsx)
 
-                acc = accuracy_score(gold, testybar)
-                auc = roc_auc_score(gold, preds)
-                
-                performance_auc.append(auc)
-                performance_acc.append(acc)
-                
-
-            EVAL_AUC.append(performance_auc)
-            EVAL_ACC.append(performance_acc)
+                acc_k.append(accuracy_score(goldx, testybar))
+                auc_k.append(roc_auc_score(goldx, [preds[i] for i in test_idx]))
+            performance_auc.append(auc_k)
+            performance_acc.append(acc_k)
+        
+        performance_auc = np.array(performance_auc)
+        performance_acc = np.array(performance_acc)
+        performance_auc = list(np.mean(performance_auc, axis=0))
+        performance_acc = list(np.mean(performance_acc, axis=0))
+            
+        EVAL_AUC.append(performance_auc)
+        EVAL_ACC.append(performance_acc)
 
     return EVAL_AUC, EVAL_ACC
 
-if __name__ == "__main__":
 
-    dataset_metric, dataset_domain, domain_count, metric_short = dh.load_TRUE()
+
+def main():
+
+    parser = argparse.ArgumentParser(
+                    prog='Evaluator',
+                    description='Evaluator of diverse models for binary prediction')
+
+    parser.add_argument("-data", default="TRUE", type=str)
+    parser.add_argument("-calibration", default="xdomain", type=str, choices=["xdomain", "indomain", "indata", "outdomain"])
+
+    args = parser.parse_args()
     
-    metrics = list(metric_short.keys())
+    # dataset_metric: a mapping from dataset names to a dictionary {metric_name: score}
+    #                 where one metric_name must be "label" to specify the binary 0/1 gold scores
+    #                 e.g., {"mydata":{"metric1": [0.91, 0.01, 0.99], "label":[1, 0, 0]}}
+    # --
+    # dataset_domain: OPTIONAL mapping from dataset names to domains; 
+    #                 REQUIRED when calibration mode is "indomain"
+    # --
+    # domain_count: OPTIONAL mapping from domains to the count of datasets from this domain
+    #               REQUIRED when calibration mode is "indomain"
+    # --
+    # metric_short: mapping from metric names to short names for nice presentation in output table,
+    #               e.g. {"zeberta-xxl-01-v07":"zeberta"}
+    dataset_metric, dataset_domain, domain_count, metric_short = dh.DatasetFactory().load(data=args.data)
     
-    CALIBRATION_MODE = "xdomain"
+    metrics = list(metric_short.keys()) 
     
-    if CALIBRATION_MODE in ["xdomain", "indata"]:
-        EVAL_AUC, EVAL_ACC = evaluate_calibrate(dataset_metric, metrics, None, None, CALIBRATION_MODE)    
-    
-    if CALIBRATION_MODE == "indomain":
-        EVAL_AUC, EVAL_ACC = evaluate(dataset_metric, metrics, dataset_domain, domain_count, CALIBRATION_MODE)    
+    if args.calibration in ["xdomain", "indomain", "outdomain"]:
+        EVAL_AUC, EVAL_ACC = evaluate_calibrate(dataset_metric, metrics, dataset_domain, domain_count, args.calibration)    
+
+    if args.calibration == "indata":
+        EVAL_AUC, EVAL_ACC = evaluate_calibrate_indata(dataset_metric, metrics)
     
 
     EVAL_AUC.append(list(np.array(EVAL_AUC).mean(axis=0)))
@@ -161,7 +186,7 @@ if __name__ == "__main__":
 
     def tolatex(dic):
         stringss =  [" & " + " & ".join(["\\texttt{"+metric_short[m]+"}" for m in metrics]) + " \\\\"] + []
-        for i, ds in enumerate(dic):
+        for ds in dic:
             strings = [ds.split("_")[0]]
             for metric in metrics:
                 score = dic[ds][metric]
@@ -178,4 +203,5 @@ if __name__ == "__main__":
 
     print(metrics)    
 
-
+if __name__ == "__main__":
+    main()

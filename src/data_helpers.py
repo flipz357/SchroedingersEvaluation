@@ -1,14 +1,15 @@
 import csv
 import os
-from sklearn.metrics import roc_auc_score, accuracy_score
-from scipy.stats import rankdata
-from collections import defaultdict
-import numpy as np
-from random import shuffle
-from sklearn.svm import LinearSVC
-from sklearn.linear_model import LogisticRegression
-import json
 
+class DatasetFactory():
+
+    @staticmethod
+    def load(data="TRUE"):
+
+        if data == "TRUE":
+            return load_TRUE()
+
+        raise ValueError("dataset with name {} is unknown".format(data))
 
 def load_TRUE():
     
@@ -39,6 +40,7 @@ def load_TRUE():
     for do in domain_dataset:
         for ds in domain_dataset[do]:
             dataset_domain[ds] = do
+    
     def readf(p):
         with open(p) as csvfile:
             csvreader = csv.reader(csvfile, delimiter=',', quotechar='"')
@@ -50,11 +52,6 @@ def load_TRUE():
                     for j, label in enumerate(labels):
                         if label in metrics:
                             metric_score[label].append(float(row[j]))
-                
-                #toy mode, warning, SWITCH oFF in final run
-                #if i > 500:
-                #    break
-            
             return metric_score
 
     dataset_metric = {}
