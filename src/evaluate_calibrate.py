@@ -33,26 +33,13 @@ def evaluate_calibrate(dataset_metric, metrics, dataset_domain=None, domain_coun
                         continue
                 trainpreds += dataset_metric[dsx][metric]
                 traingold += dataset_metric[dsx]["label"]
-            """ 
-            traingold = []
-            for dsx in dataset_metric:
-                if dsx == ds:
-                    continue
-                if mode == "indomain":
-                    domain = dataset_domain[ds]
-                    if domain_count[domain] > 1 and domain != dataset_domain[dsx]:
-                        continue
-                elif mode == "outdomain":
-                    domain = dataset_domain[ds]
-                    if domain == dataset_domain[dsx]:
-                        continue
-                traingold += dataset_metric[dsx]["label"]
-            """
+            
             preds = dataset_metric[ds][metric] 
             predsx = [[p] for p in preds]
             trainpredsx = [[trainpreds[i]] for i in range(len(trainpreds))]
             clf = LogisticRegression()
             clf.fit(trainpredsx, traingold)
+            #print(clf.coef_, clf.intercept_, metric, ds, )
             testybar = clf.predict(predsx)
 
             acc = accuracy_score(gold, testybar)
@@ -191,7 +178,7 @@ def main():
             for metric in metrics:
                 score = dic[ds][metric]
                 score = round(score * 100, 1)
-                score = str(score) + " | \\textbf{"+  str([k for k in dic[ds]].index(metric)) + "}"
+                score = str(score) + " | \\textbf{"+  str([k for k in dic[ds]].index(metric) + 1) + "}"
                 strings.append(score)
             strings = " & ".join(strings) + " \\\\"
             stringss.append(strings)
