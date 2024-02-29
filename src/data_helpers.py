@@ -8,6 +8,26 @@ class DatasetFactory():
 
         if data == "TRUE":
             return load_TRUE()
+        
+        #### implement your own data set here ####
+
+        #if data == "MY_DATA":
+        #    return dataset_metric, dataset_domain, domain_count, metric short
+        #
+        # where
+        # dataset_metric: a mapping from dataset names to a dictionaries with metric 
+        #                 names and their scores {metric_name: score}
+        #                 where one metric_name must be "label" to specify the binary 0/1 gold scores
+        #                 e.g., {"mydatasetA":{"metric1": [0.91, 0.01, 0.99], "label":[1, 0, 0]}}
+        # --
+        # dataset_domain: OPTIONAL (can be None), mapping from dataset names to domains;
+        #                 REQUIRED when calibration mode is "indomain"
+        # --
+        # domain_count: OPTIONAL (can be None), mapping from domains to the count of datasets from this domain
+        #               REQUIRED when calibration mode is "indomain"
+        # --
+        # metric_short: mapping from metric names to short names for nice presentation in output table,
+        #               e.g. {"zeberta-xxl-01-v07":"zeberta"}
 
         raise ValueError("dataset with name {} is unknown".format(data))
 

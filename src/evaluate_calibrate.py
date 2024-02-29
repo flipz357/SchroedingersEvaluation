@@ -130,18 +130,8 @@ def main():
 
     args = parser.parse_args()
     
-    # dataset_metric: a mapping from dataset names to a dictionary {metric_name: score}
-    #                 where one metric_name must be "label" to specify the binary 0/1 gold scores
-    #                 e.g., {"mydata":{"metric1": [0.91, 0.01, 0.99], "label":[1, 0, 0]}}
-    # --
-    # dataset_domain: OPTIONAL mapping from dataset names to domains; 
-    #                 REQUIRED when calibration mode is "indomain"
-    # --
-    # domain_count: OPTIONAL mapping from domains to the count of datasets from this domain
-    #               REQUIRED when calibration mode is "indomain"
-    # --
-    # metric_short: mapping from metric names to short names for nice presentation in output table,
-    #               e.g. {"zeberta-xxl-01-v07":"zeberta"}
+    # this loads a data set, you can simply use your own data set / benchmark, 
+    # please see class "DatasetFactory" in data_helpers.py
     dataset_metric, dataset_domain, domain_count, metric_short = dh.DatasetFactory().load(data=args.data)
     
     metrics = list(metric_short.keys()) 
