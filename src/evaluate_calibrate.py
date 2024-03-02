@@ -155,7 +155,7 @@ def main():
                 return pred
             
             def fit(self, X, y):
-                pred = self.clf.fit(X, y)
+                self.clf.fit(X, y)
                 return None
 
         clf = IsotonicRegression()
