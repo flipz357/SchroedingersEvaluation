@@ -1,4 +1,4 @@
-from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.metrics import accuracy_score, cohen_kappa_score
 import numpy as np
 from random import shuffle
 from sklearn.linear_model import LogisticRegression
@@ -8,6 +8,7 @@ import json
 import data_helpers as dh
 import argparse
 
+#accuracy_score = cohen_kappa_score
 
 def evaluate_calibrate(dataset_metric, metrics, clf, dataset_domain=None, domain_count=None, mode=None):
 
@@ -30,8 +31,7 @@ def evaluate_calibrate(dataset_metric, metrics, clf, dataset_domain=None, domain
               
             trainpreds = []
             traingold = []
-            
-            
+             
             for dsx in dataset_metric:
                 if dsx == ds:
                     continue
@@ -47,17 +47,37 @@ def evaluate_calibrate(dataset_metric, metrics, clf, dataset_domain=None, domain
                 traingold += dataset_metric[dsx]["label"]
             
             preds = dataset_metric[ds][metric] 
-            predsx = [[p] for p in preds]
-            trainpredsx = [[trainpreds[i]] for i in range(len(trainpreds))]
             
-            clf.fit(trainpredsx, traingold) 
-            testybar = clf.predict(predsx)
+            if isinstance(trainpreds[0], list):
+                predsx = [p for p in preds]
+                trainpredsx = [trainpreds[i] for i in range(len(trainpreds))] 
+            else:
+                predsx = [[p] for p in preds]
+                trainpredsx = [[trainpreds[i]] for i in range(len(trainpreds))]
+            
+            if mode == "outdata":
+                clf.fit(predsx, gold) 
+                testybar = clf.predict(trainpredsx)
+                acc_tmp = accuracy_score(traingold, testybar)
+                
+                if isinstance(preds[0], list):
+                    preds = [sum(x) for x in preds] 
+                auc = roc_auc_score(traingold, trainpredsx)
+                
+                performance_auc.append(auc)
+                performance_acc.append(acc_tmp)
 
-            acc = accuracy_score(gold, testybar)
-            auc = roc_auc_score(gold, preds)
-            
-            performance_auc.append(auc)
-            performance_acc.append(acc)
+            else:
+                clf.fit(trainpredsx, traingold) 
+                testybar = clf.predict(predsx)
+                acc_tmp = accuracy_score(gold, testybar)
+                
+                if isinstance(preds[0], list):
+                    preds = [sum(x) for x in dataset_metric[ds][metric]] 
+                auc = roc_auc_score(gold, preds)
+                
+                performance_auc.append(auc)
+                performance_acc.append(acc_tmp)
             
         EVAL_AUC.append(performance_auc)
         EVAL_ACC.append(performance_acc)
@@ -84,16 +104,29 @@ def k_mean(dataset_metric, metrics, ds, clf, k=25):
             
             preds = dataset_metric[ds][metric]
             gold = dataset_metric[ds]["label"]
-            trainpredsx = [[preds[i]] for i in train_idx]
             traingold = [gold[i] for i in train_idx]
-            predsx = [[preds[i]] for i in test_idx]
             goldx = [gold[i] for i in test_idx]
+            
+            if isinstance(preds[0], list):
+                trainpredsx = [preds[i] for i in train_idx]
+                predsx = [preds[i] for i in test_idx]
+            else:
+                trainpredsx = [[preds[i]] for i in train_idx]
+                predsx = [[preds[i]] for i in test_idx]
             
             clf.fit(trainpredsx, traingold)
             testybar = clf.predict(predsx)
 
-            acc_k.append(accuracy_score(goldx, testybar))
-            auc_k.append(roc_auc_score(goldx, [preds[i] for i in test_idx]))
+            acc_tmp = accuracy_score(goldx, testybar)
+            acc_k.append(acc_tmp)
+            
+            preds = [preds[i] for i in test_idx]
+            if isinstance(preds[0], list):
+                preds = [sum(x) for x in preds] 
+            
+            auc_tmp = roc_auc_score(goldx, testybar)
+            
+            auc_k.append(auc_tmp)
         performance_auc.append(auc_k)
         performance_acc.append(acc_k)
     
@@ -125,8 +158,10 @@ def main():
                     description='Evaluator of diverse models for binary prediction')
 
     parser.add_argument("-data", default="TRUE", type=str)
-    parser.add_argument("-calibration", default="xdomain", type=str, choices=["xdomain", "indomain", "indata", "outdomain"])
+    parser.add_argument("-calibration", default="xdomain", type=str, choices=["xdomain", "indomain", "indata", "outdomain", "outdata"])
     parser.add_argument("-clf", default="logistic", type=str, choices=["logistic", "threshold", "isotonic"])
+    parser.add_argument("--ensemle", action="store_true")
+    parser.add_argument("-class_weight", type=str, default=None, choices=["balanced"])
 
     args = parser.parse_args()
     
@@ -137,11 +172,14 @@ def main():
     metrics = list(metric_short.keys()) 
     
     if args.clf == "logistic":
-        clf = LogisticRegression()
+        clf = LogisticRegression(class_weight=args.class_weight)
+        #from sklearn.model_selection import GridSearchCV
+        #params = {"C":[0.001, 0.01, 0.1, 1, 2, 10]}
+        #clf = GridSearchCV(clf, params)
     
     if args.clf == "threshold":
-        clf = DecisionTreeClassifier(max_depth=1)
-    
+        clf = DecisionTreeClassifier(max_depth=1, class_weight=args.class_weight)
+     
     if args.clf == "isotonic":
 
         class Decision:
@@ -161,7 +199,7 @@ def main():
         clf = IsotonicRegression()
         clf = Decision(clf)
     
-    if args.calibration in ["xdomain", "indomain", "outdomain"]:
+    if args.calibration in ["xdomain", "indomain", "outdomain", "outdata"]:
         EVAL_AUC, EVAL_ACC = evaluate_calibrate(dataset_metric, metrics, clf, dataset_domain, domain_count, mode=args.calibration)    
 
     if args.calibration == "indata":

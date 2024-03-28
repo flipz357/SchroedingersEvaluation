@@ -1,5 +1,6 @@
-# Code for Downstream Evaluation of Faithfulness Models
+# Code for the paper Schroedinger's Threshold: When the AUC doesn't predict accuracy
 
+This code contains downstream evaluation of regression models across domains and datasets, with expected accuracy.
 
 ## Requirements
 
@@ -12,6 +13,7 @@ python (used: 3.8)
 ## Recommended best practice for evaluating a faithfulness measure
 
 1. Prepare your data set, with measure predictions and gold labels, and possibly also domains. For data format, see first comment in `main()` of `evaluate_calibrate.py` and for an example see `data_helpers.py`. You may associate your data set with a key word, e.g., `MY_DATA`.
+
 2. Run evaluation, most interesting options are:
 
 ```
@@ -44,5 +46,7 @@ python evaluate_calibrate.py -data TRUE -calibration xdomain -clf logistic
 ## Reference
 
 If you like the work, consider citing:
+
+
 
 

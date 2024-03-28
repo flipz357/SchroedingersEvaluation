@@ -31,7 +31,7 @@ class DatasetFactory():
 
         raise ValueError("dataset with name {} is unknown".format(data))
 
-def load_TRUE():
+def load_TRUE(include_ensemble=False):
     
     path = "../data/true_data/"
 
@@ -79,5 +79,18 @@ def load_TRUE():
         if fi.endswith("csv") and fi not in exclude:
             dat = readf(path + fi)
             dataset_metric[fi] = dat
+    
+    if include_ensemble:
+        for dataset in dataset_metric:
+            e_preds = []
+            for i in range(len(dataset_metric[dataset]["FactCC"])):
+                e_preds_tmp = []
+                for metric in metric_short:
+                    if metric == "label":
+                        continue
+                    e_preds_tmp.append(dataset_metric[dataset][metric][i])
+                e_preds.append(e_preds_tmp)
+            dataset_metric[dataset]["ensemble"] = e_preds
+        metric_short["ensemble"] = "ensemble"
     
     return dataset_metric, dataset_domain, domain_count,  metric_short
