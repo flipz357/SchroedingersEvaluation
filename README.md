@@ -1,4 +1,4 @@
-# Code for the paper Schroedinger's Threshold: When the AUC doesn't predict accuracy
+# Code for the paper *Schroedinger's Threshold: When the AUC doesn't predict accuracy*
 
 This code contains downstream evaluation of regression models across domains and datasets, with expected accuracy.
 
